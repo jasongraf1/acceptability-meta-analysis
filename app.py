@@ -6,6 +6,10 @@ import os
 from io import StringIO
 from db import Annotation, SessionLocal
 from datetime import datetime
+import threading
+
+# Lock to serialize DB access
+db_lock = threading.Lock()
 
 # === Define decorators for caching the data files ===
 @st.cache_data(show_spinner=False)
@@ -40,8 +44,6 @@ def load_coded_df(db_path, last_modified):
     expanded_df = pl.DataFrame(repeated_rows)
 
     return expanded_df
-
-
 
 @st.cache_data(show_spinner=False)
 def load_journal_articles(excel_path):
@@ -134,18 +136,41 @@ def render_article_table(filtered_df, journal_name):
             st.query_params.update({"mode": "Review Entry" if is_coded else "Add Entry"})
             st.rerun()
 
+# For saving annotations
+def save_annotation(entry_dict):
+    with db_lock:
+        session = SessionLocal()
+        try:
+            existing = session.query(Annotation).filter(
+                Annotation.article_index == entry_dict["article_index"],
+                Annotation.experiment_number == entry_dict["experiment_number"]
+            ).first()
+
+            if existing:
+                # Update existing fields
+                for k, v in entry_dict.items():
+                    setattr(existing, k, v)
+            else:
+                # Create new record
+                new = Annotation(**entry_dict)
+                session.add(new)
+
+            session.commit()
+        finally:
+            session.close()
+
 # === Define the output file ===
 output_file = "new_annotations.csv"
 
 # === Load article list from Excel file with multiple sheets (each sheet = one journal) ===
 # Pandas is still needed for reading multi-sheet Excel files
-excel_path = "test_articles_dataset.xlsx"
+excel_path = os.path.join(os.path.dirname(__file__), "test_articles_dataset.xlsx")
 
 journal_articles = load_journal_articles(excel_path)
 
 # === Get the codes for annotation ===
 # Read in the codebook
-codebook_path = "codebook_for_app.csv"
+codebook_path = os.path.join(os.path.dirname(__file__), "codebook_for_app.csv")
 
 # `getmtime`` returns the last modified time as a float (seconds since epoch)
 last_modified = os.path.getmtime(codebook_path) if os.path.exists(codebook_path) else 0
@@ -495,17 +520,12 @@ elif mode == "Add Entry":
         st.query_params.update({"mode": "Article Dashboard"})
         st.rerun()
     elif submitted:
-        session = SessionLocal()
         try:
-            new_row = Annotation(**new_entry)
-            session.add(new_row)  # 🆕 Always inserts
-            session.commit()
+            save_annotation(new_entry)
             st.success("New annotation saved!")
         except Exception as e:
-            session.rollback()
             st.error(f"Error: {e}")
-        finally:
-            session.close()
+
         load_coded_df.clear()
         st.query_params.update({"mode": "Article Dashboard"})
         st.rerun()
@@ -597,24 +617,12 @@ elif mode == "Review Entry":
         st.rerun()
 
     elif submitted:
-        session = SessionLocal()
         try:
-            existing = session.query(Annotation).filter(
-                Annotation.article_index == new_entry["article_index"]
-            ).first()
-
-            if existing:
-                for key, value in new_entry.items():
-                    setattr(existing, key, value)
-                session.commit()
-                st.success("Annotation updated!")
-            else:
-                st.error("No existing entry found to update.")
+            save_annotation(new_entry)
+            st.success("Entry updated!")
         except Exception as e:
-            session.rollback()
-            st.error(f"Update failed: {e}")
-        finally:
-            session.close()
+            st.error(f"Error: {e}")
+
 
         load_coded_df.clear()
         st.query_params.update({"mode": "Article Dashboard"})
