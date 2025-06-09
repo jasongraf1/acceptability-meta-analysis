@@ -1,5 +1,7 @@
-streamlit
-pandas
-openpyxl
-datetime
-re
+streamlit>=1.25
+pandas>=2.0
+polars>=0.19
+sqlalchemy>=2.0
+python-dateutil
+openpyxl>=3.1
+rapidfuzz>=3.0
