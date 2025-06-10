@@ -319,6 +319,7 @@ if mode == "Article Dashboard":
         st.markdown("<div style='flex:1'></div>", unsafe_allow_html=True)
 
         # 🔹 Bottom section: download button
+        st.markdown("### Download")
         try:
             session = SessionLocal()
             df = pd.read_sql("SELECT * FROM annotations", session.bind)
@@ -481,10 +482,11 @@ elif mode == "Add Entry":
                 elif field in codebook_values:
                     options = codebook_values.get(field)
                     if default in options:
-                        index = options.index(default) + 1
+                        index = options.index(default)
                     else:
                         index = 0
-                    new_entry[field] = st.selectbox(label, [""] + options, index=index, key=field, help=help_text)
+                    # new_entry[field] = st.selectbox(label, [""] + options, index=index, key=field, help=help_text)
+                    new_entry[field] = st.radio(label, options, index=index, key=field, help=help_text, horizontal=True)
                 elif field in ["instructions", "coder_comments"]:
                     new_entry[field] = st.text_area(label, key=field)
                 else:
