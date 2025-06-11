@@ -62,7 +62,7 @@ def load_codebook(codebook_path, last_modified):
     else:
         return pl.DataFrame()
 
-# === Define funcions ===
+# === Define functions ===
 def abbreviate_title(title):
     if pd.isna(title):
         return "no_title"
@@ -78,6 +78,19 @@ def abbreviate_authors(authors):
         return ", ".join(surnames)
     else:
         return ", ".join(surnames[:3]) + " et al."
+
+def change_label_style(label, font_size='16px', font_color='white', font_family='sans-serif'):
+    html = f"""
+    <script>
+        var elems = window.parent.document.querySelectorAll('p');
+        var elem = Array.from(elems).find(x => x.innerText == '{label}');
+        elem.style.fontSize = '{font_size}';
+        elem.style.color = '{font_color}';
+        elem.style.fontFamily = '{font_family}';
+    </script>
+    """
+    st.components.v1.html(html)
+
 
 def render_article_table(filtered_df, journal_name):
     # Header row
@@ -467,10 +480,13 @@ elif mode == "Add Entry":
         url = st.text_input("URL", value=prefill["url"])
         searchterm = st.text_input("Search terms", value=prefill['searchterm'])
 
+        field_counter = 0
         for section, fields in field_sections.items():
             st.markdown(f"### {section}")
-            for field in fields:
+            for i, field in enumerate(fields):
+                field_counter += 1
                 description_text = field_descriptions.get(field, "")
+                description_text = f"[{field_counter+1}]. {description_text}"
                 help_text = help_descriptions.get(field, "")
                 default = default_values.get(field, "")
                 label = description_text if description_text else field.replace("_", " ").capitalize()
@@ -495,10 +511,12 @@ elif mode == "Add Entry":
                 if field in commentable_fields_expandable:
                     with st.expander(f"Add comment on {field.replace('_', ' ').capitalize()} (optional)"):
                         new_entry[f"{field}_comment"] = st.text_area("", key=f"{field}_comment")
+                
+                # change_label_style(label, '20px')
 
         col1, col2, spacer = st.columns([2, 1, 7])
         with col1:
-            submitted = st.form_submit_button("New Annotation Added!")
+            submitted = st.form_submit_button("Submt New Annotation")
         with col2:
             cancel = st.form_submit_button("❌ Cancel")
             st.markdown(
@@ -566,8 +584,9 @@ elif mode == "Review Entry":
 
         for section, fields in field_sections.items():
             st.markdown(f"### {section}")
-            for field in fields:
+            for i, field in enumerate(fields):
                 description_text = field_descriptions.get(field, "")
+                description_text = f"[{i+1}]. {description_text}"
                 help_text = help_descriptions.get(field, "")
                 default = default_values.get(field, "")
                 label = description_text if description_text else field.replace("_", " ").capitalize()
@@ -585,6 +604,8 @@ elif mode == "Review Entry":
                     new_entry[field] = st.text_area(label, value=default, key=field)
                 else:
                     new_entry[field] = st.text_input(label, value=default, key=field, help=help_text)
+                
+                # change_label_style(label, '20px')
 
                 # Handle comments
                 comment_default = selected_article.get(f"{field}_comment", "")
